@@ -120,3 +120,8 @@ The default recommended controller is the Deployment which configures a ReplicaS
 With the help of a ReplicaSet, we can scale the number of Pods running a specific application container image. Scaling can be accomplished manually or through the use of an autoscaler.
 
 ###Namespaces
+Generally, Kubernetes creates four Namespaces out of the box: kube-system, kube-public, kube-node-lease, and default. The kube-system Namespace contains the objects created by the Kubernetes system, mostly the control plane agents. The default Namespace contains the objects and resources created by administrators and developers, and objects are assigned to it by default unless another Namespace name is provided by the user. kube-public is a special Namespace, which is unsecured and readable by anyone, used for special purposes such as exposing public (non-sensitive) information about the cluster. The newest Namespace is kube-node-lease which holds node lease objects used for node heartbeat data. Good practice, however, is to create additional Namespaces, as desired, to virtualize the cluster and isolate users, developer teams, applications, or tiers.
+
+Namespaces are one of the most desired features of Kubernetes, securing its lead against competitors, as it provides a solution to the multi-tenancy requirement of today's enterprise development teams.
+
+Resource Quotas help users limit the overall resources consumed within Namespaces, while LimitRanges help limit the resources consumed by Pods or Containers in a Namespace. We will briefly cover quota management in a later chapter.

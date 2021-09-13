@@ -10,6 +10,17 @@ https://kubernetes.io/docs/reference/kubectl/overview/
 ---
 > kubectl proxy (starts the dashboard, typically at: http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/)
 ---
+> kubectl get deploy,rs,po -l <label_name>
+----
+>kubectl rollout history deploy <name of the app | deploy> --revision=x
+---
+> kubectl describe deploy <name of the deploy>
+---
+#####**Rolling updates**
+> kubectl set image deployment <app_label> <container_label>=<image>
+---
+#####**Rollback**
+>kubectl rollout undo deployment mynginx --to-revision=1
 ####curl
 > curl http://localhost:8001/
 ---
