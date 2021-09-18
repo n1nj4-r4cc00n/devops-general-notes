@@ -180,3 +180,65 @@ With the ABAC authorizer, Kubernetes grants access to API requests, which combin
 To enable ABAC mode, we start the API server with the --authorization-mode=ABAC option, while specifying the authorization policy with --authorization-policy-file=PolicyFile.json. For more details, please review the [ABAC authorization](https://kubernetes.io/docs/reference/access-authn-authz/abac/).
 - Webhook
 In Webhook mode, Kubernetes can request authorization decisions to be made by third-party services, which would return true for successful authorization, and false for failure. In order to enable the Webhook authorizer, we need to start the API server with the --authorization-webhook-config-file=SOME_FILENAME option, where SOME_FILENAME is the configuration of the remote authorization service. For more details, please see the [Webhook mode](https://kubernetes.io/docs/reference/access-authn-authz/webhook/). 
+
+#####Role-Based Access Control (RBAC)
+In general, with RBAC we regulate the access to resources based on the Roles of individual users. In Kubernetes, multiple Roles can be attached to subjects like users, service accounts, etc. While creating the Roles, we restrict resource access by specific operations, such as create, get, update, patch, etc. These operations are referred to as verbs.
+
+In RBAC, we can create two kinds of Roles:
+
+- Role
+A Role grants access to resources within a specific Namespace.
+
+- ClusterRole
+A ClusterRole grants the same permissions as Role does, but its scope is cluster-wide.
+
+In this course, we will focus on the first kind, Role. Below you will find an example:
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+namespace: lfs158
+name: pod-reader
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+
+The manifest defines a pod-reader role, which has access only to read the Pods of lfs158 Namespace. Once the role is created, we can bind it to users with a RoleBinding object.
+
+There are two kinds of RoleBindings:
+
+- RoleBinding
+It allows us to bind users to the same namespace as a Role. We could also refer a ClusterRole in RoleBinding, which would grant permissions to Namespace resources defined in the ClusterRole within the RoleBinding’s Namespace.
+
+- ClusterRoleBinding
+It allows us to grant access to resources at a cluster-level and to all Namespaces.
+
+In this course, we will focus on the first kind, RoleBinding. Below, you will find an example:
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+name: pod-read-access
+namespace: lfs158
+subjects:
+- kind: User
+  name: student
+  apiGroup: rbac.authorization.k8s.io
+  roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+
+The manifest defines a bind between the pod-reader Role and the student user, to restrict the user to only read the Pods of the lfs158 Namespace.
+
+To enable the RBAC mode, we start the API server with the --authorization-mode=RBAC option, allowing us to dynamically configure policies. For more details, please review the RBAC mode.
+
+####Admission Control
+Admission Controllers are used to specify granular access control policies, which include allowing privileged containers, checking on resource quota, etc. We force these policies using different admission controllers, like ResourceQuota, DefaultStorageClass, AlwaysPullImages, etc. They come into effect only after API requests are authenticated and authorized.
+
+To use admission controls, we must start the Kubernetes API server with the --enable-admission-plugins, which takes a comma-delimited, ordered list of controller names:
+
+--enable-admission-plugins=NamespaceLifecycle,ResourceQuota,PodSecurityPolicy,DefaultStorageClass
+
+Kubernetes has some admission controllers enabled by default. For more details, please review the list of [Admission Controllers](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#what-does-each-admission-controller-do).
+
+Kubernetes admission control can also be implemented though custom plugins, for a [Dynamic Admission Control](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) method. These plugins are developed as extensions and run as admission webhooks.
