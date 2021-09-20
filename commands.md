@@ -6,3 +6,9 @@
 > sudo usermod -aG docker $USER && newgrp docker (add the current user $USER to a new docker group)
 ----
 >newgrp docker (applies changes)
+
+###Openssl useful commands
+- Generates a key
+> openssl genrsa -out <nameofkey>.key 2048
+- Generates a certificate
+> openssl req -new -key <nameofkey>.key -out <nameofcertificate>.csr -subj "/CN=student/O=learner"
