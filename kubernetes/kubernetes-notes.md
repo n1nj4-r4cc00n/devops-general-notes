@@ -354,7 +354,191 @@ Please note that ExternalIPs are not managed by Kubernetes. The cluster administ
 
 [ExternalName](https://kubernetes.io/docs/concepts/services-networking/service/#externalname) is a special ServiceType, that has no Selectors and does not define any endpoints. When accessed within the cluster, it returns a CNAME record of an externally configured Service.
 
-The primary use case of this ServiceType is to make externally configured Services like my-database.example.com available to applications inside the cluster. If the externally defined Service resides within the same Namespace, using just the name my-database would make it available to other applications and Services within that same Namespace. 
+The primary use case of this ServiceType is to make externally configured Services like my-database.example.com available to applications inside the cluster. If the externally defined Service resides within the same Namespace, using just the name my-database would make it available to other applications and Services within that same Namespace.
 
+####Deployments
+
+To deploy an application using the CLI, let's first delete the Deployment we created earlier.
+
+Delete the Deployment we created earlier
+We can delete any object using the kubectl delete command. Next, we are deleting the web-dash Deployment we created earlier with the Dashboard:
+
+$ kubectl delete deployments web-dash
+
+deployment.apps "web-dash" deleted
+
+Deleting a Deployment also deletes the ReplicaSet and the Pods it created
+
+
+Create a YAML configuration file with Deployment details
+Let's create the webserver.yaml file with the following content:
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+name: webserver
+labels:
+app: nginx
+spec:
+replicas: 3
+selector:
+matchLabels:
+app: nginx
+template:
+metadata:
+labels:
+app: nginx
+spec:
+containers:
+- name: nginx
+image: nginx:alpine
+ports:
+- containerPort: 80
+
+Using kubectl, we will create the Deployment from the YAML configuration file. Using the -f option with the kubectl create command, we can pass a YAML file as an object's specification, or a URL to a configuration file from the web. In the following example, we are creating a webserver Deployment:
+
+$ kubectl create -f webserver.yaml
+
+deployment.apps/webserver created
+
+This will also create a ReplicaSet and Pods, as defined in the YAML configuration file.
+
+$  kubectl get replicasets
+
+NAME                  DESIRED   CURRENT   READY     AGE
+webserver-b477df957   3         3         3         45s
+
+$ kubectl get pods
+
+NAME                        READY     STATUS    RESTARTS   AGE
+webserver-b477df957-7lnw6   1/1       Running   0          2m
+webserver-b477df957-j69q2   1/1       Running   0          2m
+webserver-b477df957-xvdkf   1/1       Running   0          2m
+
+In a previous chapter, we explored different ServiceTypes. With ServiceTypes we can define the access method for a Service. For a NodePort ServiceType, Kubernetes opens up a static port on all the worker nodes. If we connect to that port from any node, we are proxied to the ClusterIP of the Service. Next, let's use the NodePort ServiceType while creating a Service.
+
+Create a webserver-svc.yaml file with the following content:
+
+apiVersion: v1
+kind: Service
+metadata:
+name: web-service
+labels:
+run: web-service
+spec:
+type: NodePort
+ports:
+- port: 80
+  protocol: TCP
+  selector:
+  app: nginx
+
+Using kubectl, create the Service:
+
+$ kubectl create -f webserver-svc.yaml
+
+service/web-service created
+
+A more direct method of creating a Service is by exposing the previously created Deployment (this method requires an existing Deployment).
+
+Expose a Deployment with the kubectl expose command:
+
+$ kubectl expose deployment webserver --name=web-service --type=NodePort
+
+service/web-service exposed
+
+List the Services:
+
+$ kubectl get services
+
+NAME          TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
+kubernetes    ClusterIP   10.96.0.1      <none>        443/TCP        1d
+web-service   NodePort    10.110.47.84   <none>        80:31074/TCP   22s
+
+Our web-service is now created and its ClusterIP is 10.110.47.84. In the PORT(S)section, we see a mapping of 80:31074, which means that we have reserved a static port 31074 on the node. If we connect to the node on that port, our requests will be proxied to the ClusterIP on port 80.
+
+It is not necessary to create the Deployment first, and the Service after. They can be created in any order. A Service will find and connect Pods based on the Selector.
+
+To get more details about the Service, we can use the kubectl describe command, as in the following example:
+
+$ kubectl describe service web-service
+
+Name:                     web-service
+Namespace:                default
+Labels:                   run=web-service
+Annotations:              <none>
+Selector:                 app=nginx
+Type:                     NodePort
+IP:                       10.110.47.84
+Port:                     <unset>  80/TCP
+TargetPort:               80/TCP
+NodePort:                 <unset>  31074/TCP
+Endpoints:                172.17.0.4:80,172.17.0.5:80,172.17.0.6:80
+Session Affinity:         None
+External Traffic Policy:  Cluster
+Events:                   <none>
+
+web-service uses app=nginx as a Selector to logically group our three Pods, which are listed as endpoints. When a request reaches our Service, it will be served by one of the Pods listed in the Endpoints section.
+
+####Liveness and Readiness Probes
+While containerized applications are scheduled to run in pods on nodes across our cluster, at times the applications may become unresponsive or may be delayed during startup. Implementing [Liveness and Readiness Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/) allows the kubelet to control the health of the application running inside a Pod's container and force a container restart of an unresponsive application. When defining both Readiness and Liveness Probes, it is recommended to allow enough time for the Readiness Probe to possibly fail a few times before a pass, and only then check the Liveness Probe. If Readiness and Liveness Probes overlap there may be a risk that the container never reaches ready state, being stuck in an infinite re-create - fail loop.
+
+In the next few sections, we will discuss them in more detail.
+
+If a container in the Pod has been running successfully for a while, but the application running inside this container suddenly stopped responding to our requests, then that container is no longer useful to us. This kind of situation can occur, for example, due to application deadlock or memory pressure. In such a case, it is recommended to restart the container to make the application available.
+
+Rather than restarting it manually, we can use a Liveness Probe. Liveness probe checks on an application's health, and if the health check fails, kubelet restarts the affected container automatically.
+
+Liveness Probes can be set by defining:
+
+Liveness command
+Liveness HTTP request
+TCP Liveness probe. 
+
+In the following example, the [liveness](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#define-a-liveness-command) command is checking the existence of a file /tmp/healthy:
+
+apiVersion: v1
+kind: Pod
+metadata:
+labels:
+test: liveness
+name: liveness-exec
+spec:
+containers:
+- name: liveness
+  image: k8s.gcr.io/busybox
+  args:
+  - /bin/sh
+  - -c
+  - touch /tmp/healthy; sleep 30; rm -rf /tmp/healthy; sleep 600
+    livenessProbe:
+    exec:
+    command:
+    - cat
+    - /tmp/healthy
+      initialDelaySeconds: 3
+      failureThreshold: 1
+      periodSeconds: 5
+
+The existence of the /tmp/healthy file is configured to be checked every 5 seconds using the periodSeconds parameter. The initialDelaySeconds parameter requests the kubelet to wait for 3 seconds before the first probe. When running the command line argument to the container, we will first create the /tmp/healthy file, and then we will remove it after 30 seconds. The removal of the file would trigger a probe failure, while the failureThreshold parameter set to 1 instructs kubelet to declare the container unhealthy after a single probe failure and trigger a container restart as a result
+
+#####Readiness
+Sometimes, while initializing, applications have to meet certain conditions before they become ready to serve traffic. These conditions include ensuring that the depending service is ready, or acknowledging that a large dataset needs to be loaded, etc. In such cases, we use [Readiness Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#define-readiness-probes) and wait for a certain condition to occur. Only then, the application can serve traffic.
+
+A Pod with containers that do not report ready status will not receive traffic from Kubernetes Services.
+
+...
+readinessProbe:
+exec:
+command:
+- cat
+- /tmp/healthy
+initialDelaySeconds: 5
+periodSeconds: 5
+...
+
+Readiness Probes are configured similarly to Liveness Probes. Their configuration also remains the same.
+
+Please review the readiness probes for more details.
 
 
