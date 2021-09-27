@@ -1136,4 +1136,4 @@ Istio is one of the most popular service mesh solutions, backed by Google, IBM a
 Kuma by Kong
 Linkerd a CNCF project
 Maesh by Containous, the developers of Traefik ingress controller
-Tanzu Service Mesh by VMware. 
+Tanzu Service Mesh by VMware.
